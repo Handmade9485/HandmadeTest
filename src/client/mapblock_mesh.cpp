@@ -629,7 +629,8 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	v3f offset = intToFloat((data->m_blockpos - mesh_grid.getMeshPos(data->m_blockpos)) * MAP_BLOCKSIZE, BS);
 
 	MeshCollector collector(m_bounding_sphere_center, offset);
-	const bool is_mono_mat = lod >= g_settings->getU16("lod_color_threshold");
+	const bool is_pointcloud = lod >= 30;
+	const bool is_mono_mat = is_pointcloud || lod >= g_settings->getU16("lod_color_threshold");
 
 	{
         // Generate everything
@@ -644,24 +645,30 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	*/
 	m_bounding_radius = std::sqrt(collector.m_bounding_radius_sq);
 
-	if (is_mono_mat)
-		generateMonoMesh(collector);
-	else
+	if (is_mono_mat) {
+		generateMonoMesh(collector, is_pointcloud);
+		m_has_animation = false;
+	}
+	else {
 		generateMesh(collector);
 
-	m_bsp_tree.buildTree(&m_transparent_triangles, data->m_side_length);
+		m_bsp_tree.buildTree(&m_transparent_triangles, data->m_side_length);
 
-	// Check if animation is required for this mesh
-	m_has_animation =
-		!m_crack_materials.empty() ||
-		!m_animation_info.empty();
+		// Check if animation is required for this mesh
+		m_has_animation =
+			!m_crack_materials.empty() ||
+			!m_animation_info.empty();
+	}
+
 }
 
-void MapBlockMesh::generateMonoMesh(MeshCollector &collector) const {
+void MapBlockMesh::generateMonoMesh(MeshCollector &collector, const bool is_pointcloud) const {
 	scene::SMesh *mesh = static_cast<scene::SMesh *>(m_mesh[0].get());
 
 	for(u32 i = 0; i < collector.prebuffers[0].size(); i++) {
 		scene::SMeshBuffer *buf = new scene::SMeshBuffer();
+		if (is_pointcloud)
+			buf->PrimitiveType = scene::EPT_POINT_SPRITES;
 		buf->Material = m_mono_material;
 		PreMeshBuffer &p = collector.prebuffers[0][i];
 		buf->append(&p.vertices[0], p.vertices.size(), &p.indices[0], p.indices.size());

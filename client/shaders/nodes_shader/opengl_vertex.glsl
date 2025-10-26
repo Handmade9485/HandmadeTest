@@ -188,6 +188,8 @@ void main(void)
 #endif
 	worldPosition = (mWorld * pos).xyz;
 	gl_Position = mWorldViewProj * pos;
+	// TODO get rid of the magic number of 500
+	gl_PointSize = mWorldViewProj[1][1] * 5000 * BS / gl_Position.w;
 
 	vPosition = gl_Position.xyz;
 	eyeVec = -(mWorldView * pos).xyz;

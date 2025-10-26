@@ -838,6 +838,87 @@ namespace {
 	} buffer_transform_stats;
 }
 
+static void mergePointclouds(DrawDescriptorList &draw_order, video::IVideoDriver *driver,
+		u32  &total_vtx, u32 &total_idx, CachedMeshBuffers &dynamic_buffers,
+		std::vector<std::pair<v3f, scene::IMeshBuffer*>> &to_merge_points)
+{
+	/*
+	 * Tracking buffers, their contents and modifications would be quite complicated
+	 * so we opt for something simple here: We identify buffers by their location
+	 * in memory.
+	 * This imposes the following assumptions:
+	 * - buffers don't move in memory
+	 * - vertex and index data is immutable
+	 * - we know when to invalidate (invalidateMapBlockMesh does this)
+	 */
+	std::sort(to_merge_points.begin(), to_merge_points.end(), [] (const auto &l, const auto &r) {
+		return static_cast<void*>(l.second) < static_cast<void*>(r.second);
+	});
+	// cache key is a string of sorted raw pointers
+	std::string key;
+	key.reserve(sizeof(void*) * to_merge_points.size());
+	for (auto &it : to_merge_points)
+		key.append(reinterpret_cast<const char*>(&it.second), sizeof(void*));
+
+	// try to take from cache
+	auto it2 = dynamic_buffers.find(key);
+	if (it2 != dynamic_buffers.end()) {
+		buffer_transform_stats.increment(true);
+		const auto &use_mat = to_merge_points.front().second->getMaterial();
+		assert(!it2->second.buf.empty());
+		for (auto *buf : it2->second.buf) {
+			// material is not part of the cache key, so make sure it still matches
+			buf->getMaterial() = use_mat;
+			draw_order.emplace_back(v3f(0), buf);
+		}
+		it2->second.age = 0;
+	} else if (!key.empty()) {
+		buffer_transform_stats.increment(false);
+		// merge and save to cache
+		auto &put_buffers = dynamic_buffers[key];
+		scene::SMeshBuffer *tmp = nullptr;
+		const auto &finish_buf = [&] () {
+			if (tmp) {
+				draw_order.emplace_back(v3f(0), tmp);
+				total_vtx = subtract_or_zero(total_vtx, tmp->getVertexCount());
+				total_idx = subtract_or_zero(total_idx, tmp->getIndexCount());
+
+				// Upload buffer here explicitly to give the driver some
+				// extra time to get it ready before drawing.
+				tmp->setHardwareMappingHint(scene::EHM_STREAM);
+				driver->updateHardwareBuffer(tmp->getVertexBuffer());
+				driver->updateHardwareBuffer(tmp->getIndexBuffer());
+			}
+			tmp = nullptr;
+		};
+
+		for (auto &it : to_merge_points) {
+			const v3f translate = it.first;
+			auto *buf = it.second;
+
+			bool new_buffer = false;
+			if (!tmp)
+				new_buffer = true;
+			else if (tmp->getVertexCount() + buf->getVertexCount() > U16_MAX)
+				new_buffer = true;
+			if (new_buffer) {
+				finish_buf();
+				tmp = new scene::SMeshBuffer();
+				tmp->setPrimitiveType(scene::EPT_POINT_SPRITES);
+				put_buffers.buf.push_back(tmp);
+				assert(tmp->getPrimitiveType() == buf->getPrimitiveType());
+				tmp->Material = buf->getMaterial();
+				// preallocate approximately
+				tmp->Vertices->Data.reserve(MYMIN(U16_MAX, total_vtx));
+				tmp->Indices->Data.reserve(total_idx);
+			}
+			appendToMeshBuffer(tmp, buf, translate);
+		}
+		finish_buf();
+		assert(!put_buffers.buf.empty());
+	}
+}
+
 /**
  * Copy a list of mesh buffers into the draw order, while potentially
  * merging some.
@@ -872,7 +953,8 @@ static u32 transformBuffersToDrawOrder(
 	u32 can_merge = 0;
 	u32 total_vtx = 0, total_idx = 0;
 	for (auto &pair : src) {
-		if (pair.second->getVertexCount() < target_min_vertices) {
+		if (pair.second->getVertexCount() < target_min_vertices ||
+			pair.second->getPrimitiveType() == scene::EPT_POINT_SPRITES) {
 			can_merge++;
 			total_vtx += pair.second->getVertexCount();
 			total_idx += pair.second->getIndexCount();
@@ -880,16 +962,19 @@ static u32 transformBuffersToDrawOrder(
 	}
 
 	// iterate in reverse to get closest blocks first
-	std::vector<std::pair<v3f, scene::IMeshBuffer*>> to_merge;
+	std::vector<std::pair<v3f, scene::IMeshBuffer*>> to_merge_trigs;
+	std::vector<std::pair<v3f, scene::IMeshBuffer*>> to_merge_points;
 	for (auto it = src.rbegin(); it != src.rend(); ++it) {
 		v3f translate = get_world_pos(it->first);
 		auto *buf = it->second;
-		if (can_merge < 2 || buf->getVertexCount() >= target_min_vertices) {
+		if (buf->getPrimitiveType() == scene::EPT_POINT_SPRITES) {
+			to_merge_points.emplace_back(translate, buf);
+		} else if (can_merge < 2 || buf->getVertexCount() >= target_min_vertices) {
 			draw_order.emplace_back(translate, buf);
-			continue;
-		}
-		to_merge.emplace_back(translate, buf);
+		} else
+			to_merge_trigs.emplace_back(translate, buf);
 	}
+	mergePointclouds(draw_order, driver, total_vtx, total_idx, dynamic_buffers, to_merge_points);
 
 	/*
 	 * Tracking buffers, their contents and modifications would be quite complicated
@@ -900,20 +985,20 @@ static u32 transformBuffersToDrawOrder(
 	 * - vertex and index data is immutable
 	 * - we know when to invalidate (invalidateMapBlockMesh does this)
 	 */
-	std::sort(to_merge.begin(), to_merge.end(), [] (const auto &l, const auto &r) {
+	std::sort(to_merge_trigs.begin(), to_merge_trigs.end(), [] (const auto &l, const auto &r) {
 		return static_cast<void*>(l.second) < static_cast<void*>(r.second);
 	});
 	// cache key is a string of sorted raw pointers
 	std::string key;
-	key.reserve(sizeof(void*) * to_merge.size());
-	for (auto &it : to_merge)
+	key.reserve(sizeof(void*) * to_merge_trigs.size());
+	for (auto &it : to_merge_trigs)
 		key.append(reinterpret_cast<const char*>(&it.second), sizeof(void*));
 
 	// try to take from cache
 	auto it2 = dynamic_buffers.find(key);
 	if (it2 != dynamic_buffers.end()) {
 		buffer_transform_stats.increment(true);
-		const auto &use_mat = to_merge.front().second->getMaterial();
+		const auto &use_mat = to_merge_trigs.front().second->getMaterial();
 		assert(!it2->second.buf.empty());
 		for (auto *buf : it2->second.buf) {
 			// material is not part of the cache key, so make sure it still matches
@@ -941,7 +1026,7 @@ static u32 transformBuffersToDrawOrder(
 			tmp = nullptr;
 		};
 
-		for (auto &it : to_merge) {
+		for (auto &it : to_merge_trigs) {
 			v3f translate = it.first;
 			auto *buf = it.second;
 

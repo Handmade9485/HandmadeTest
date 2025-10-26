@@ -296,7 +296,7 @@ private:
 	// Is m_transparent_buffers currently in consolidated form?
 	bool m_transparent_buffers_consolidated = false;
 
-	void generateMonoMesh(MeshCollector& collector) const;
+	void generateMonoMesh(MeshCollector& collector, bool is_pointcloud) const;
 
 	void generateMesh(MeshCollector& collector);
 };

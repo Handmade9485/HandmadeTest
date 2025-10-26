@@ -1824,6 +1824,8 @@ void COpenGLDriver::setBasicRenderStates(const SMaterial &material, const SMater
 
 	E_OPENGL_FIXED_PIPELINE_STATE tempState = FixedPipelineState;
 
+	glEnable(GL_PROGRAM_POINT_SIZE);
+
 	if (resetAllRenderStates || tempState == EOFPS_ENABLE || tempState == EOFPS_DISABLE_TO_ENABLE) {
 		if (resetAllRenderStates || tempState == EOFPS_DISABLE_TO_ENABLE) {
 			glDisable(GL_COLOR_MATERIAL);
