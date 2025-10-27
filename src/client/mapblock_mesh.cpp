@@ -629,15 +629,17 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	v3f offset = intToFloat((data->m_blockpos - mesh_grid.getMeshPos(data->m_blockpos)) * MAP_BLOCKSIZE, BS);
 
 	MeshCollector collector(m_bounding_sphere_center, offset);
-	const bool is_pointcloud = lod >= 30;
-	const bool is_mono_mat = is_pointcloud || lod >= g_settings->getU16("lod_color_threshold");
+	const bool is_pointcloud = lod >= g_settings->getU16("lod_pointcloud_threshold");
+	const bool is_mono_mat = is_pointcloud || lod >= g_settings->getU16("lod_texture_threshold");
 
 	{
         // Generate everything
         if (lod == 0)
 			MapblockMeshGenerator(data, &collector).generate();
-        else
-	        LodMeshGenerator(data, &collector, is_mono_mat).generate(lod);
+        else if (is_pointcloud)
+	        LodMeshGenerator(data, &collector, is_mono_mat).generatePoints(lod);
+		else
+	        LodMeshGenerator(data, &collector, is_mono_mat).generateMesh(lod);
 	}
 
 	/*

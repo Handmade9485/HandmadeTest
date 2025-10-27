@@ -14,7 +14,8 @@ class LodMeshGenerator
 {
 public:
     LodMeshGenerator(MeshMakeData *input, MeshCollector *output, bool is_mono_mat);
-    void generate(u8 lod);
+    void generateMesh(u8 lod);
+	void generatePoints(u8 lod) const;
 
 private:
     MeshMakeData *const m_data;
@@ -36,7 +37,12 @@ private:
 	bitset m_nodes_faces[6 * BITSET_MAX_NOPAD2];
 	bitset m_slices[6 * BITSET_MAX_NOPAD2];
 
-	static constexpr core::vector3df s_normals[6] = {
+	static constexpr v3s16 s_direction[Direction_END] = {
+		v3s16(0, 1, 0), v3s16(0, -1, 0),
+		v3s16(1, 0, 0), v3s16(-1, 0, 0),
+		v3s16(0, 0, 1), v3s16(0, 0, -1)
+	};
+	static constexpr core::vector3df s_normals[Direction_END] = {
 		core::vector3df(0, 1, 0), core::vector3df(0, -1, 0),
 		core::vector3df(1, 0, 0), core::vector3df(-1, 0, 0),
 		core::vector3df(0, 0, 1), core::vector3df(0, 0, -1)

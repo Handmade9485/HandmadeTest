@@ -205,6 +205,8 @@ class GameGlobalShaderUniformSetter : public IShaderUniformSetter
 	CachedVertexShaderSetting<float, 3> m_camera_offset_vertex{"cameraOffset"};
 	CachedPixelShaderSetting<float, 3> m_camera_position_pixel{ "cameraPosition" };
 	CachedVertexShaderSetting<float, 3> m_camera_position_vertex{ "cameraPosition" };
+	CachedVertexShaderSetting<float, 2> m_resolution{ "resolution" };
+	CachedVertexShaderSetting<float> m_fov_x{ "fovX" };
 	CachedVertexShaderSetting<float, 2> m_texel_size0_vertex{"texelSize0"};
 	CachedPixelShaderSetting<float, 2> m_texel_size0_pixel{"texelSize0"};
 	v2f m_texel_size0;
@@ -294,6 +296,13 @@ public:
 		v3f camera_position = m_client->getCamera()->getPosition();
 		m_camera_position_pixel.set(camera_position, services);
 		m_camera_position_pixel.set(camera_position, services);
+
+		const auto resolution = services->getVideoDriver()->getScreenSize();
+		const float resolution_vec[2] = {static_cast<float>(resolution.Width), static_cast<float>(resolution.Height)};
+		m_resolution.set(resolution_vec, services);
+
+		const f32 fov_x[1] = {m_client->getCamera()->getFovX()};
+		m_fov_x.set(fov_x, services);
 
 		m_texel_size0_vertex.set(m_texel_size0, services);
 		m_texel_size0_pixel.set(m_texel_size0, services);

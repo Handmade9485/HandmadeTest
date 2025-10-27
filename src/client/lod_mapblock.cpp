@@ -44,7 +44,7 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 			// When generating a mesh with no texture, we have to color the vertices instead.
 			video::SColor c2 = m_nodedef->get(n).average_colors[direction];
 			color = video::SColor(
-				color.getAlpha(),
+				color_in.getAlpha(),
 				color_in.getRed() * c2.getRed() / 255U,
 				color_in.getGreen() * c2.getGreen() / 255U,
 				color_in.getBlue() * c2.getBlue() / 255U);
@@ -317,11 +317,11 @@ void LodMeshGenerator::generateLodChunks(const std::bitset<NodeDrawType_END> typ
 	}
 }
 
-void LodMeshGenerator::generate(const u8 lod)
+void LodMeshGenerator::generateMesh(const u8 lod)
 {
 	ZoneScoped;
 
-	// cap LODs to 8, since there is no use larger than 256 node LODs
+	// cap LODs to 8, since there is no use for larger than 256 node LODs
     u8 width = 1 << MYMIN(lod - 1, 7);
 
 	// cap LODs width to chunk size to account for different mesh chunk settings
@@ -342,4 +342,78 @@ void LodMeshGenerator::generate(const u8 lod)
 	solid_set.set(NDT_ALLFACES);
 
 	generateLodChunks(solid_set, width);
+}
+
+void LodMeshGenerator::generatePoints(const u8 lod) const
+{
+	ZoneScoped;
+
+	ScopeProfiler sp(g_profiler, "Client: Pointcloud Making", SPT_AVG);
+
+	// cap LODs to 8, since there is no use for larger than 256 node LODs
+	u8 width = 1 << MYMIN(lod - 1, 7);
+
+	// cap LODs width to chunk size to account for different mesh chunk settings
+	if (width > m_data->m_side_length)
+		width = m_data->m_side_length;
+
+	MapNode neighbors[Direction_END];
+
+	std::bitset<NodeDrawType_END> types;
+	types.set(NDT_NORMAL);
+	types.set(NDT_NODEBOX);
+	types.set(NDT_ALLFACES);
+	types.set(NDT_LIQUID);
+	types.set(NDT_GLASSLIKE);
+
+	v3s16 p;
+	for (p.X = m_blockpos_nodes.X + width - 1; p.X < m_blockpos_nodes.X + m_data->m_side_length; p.X += width)
+	for (p.Y = m_blockpos_nodes.Y + width - 1; p.Y < m_blockpos_nodes.Y + m_data->m_side_length; p.Y += width)
+	for (p.Z = m_blockpos_nodes.Z + width - 1; p.Z < m_blockpos_nodes.Z + m_data->m_side_length; p.Z += width) {
+		MapNode n = m_data->m_vmanip.getNodeNoExNoEmerge(p);
+		if (n.getContent() == CONTENT_IGNORE)
+			continue;
+		// when our sample is air, take more samples in a straight line down, to make sure we always hit the surface
+		// otherwise, snowy mountains or grassy hills would display lumps of dirt and stone
+		const ContentFeatures* f = &m_nodedef->get(n);
+		for (u8 subtr = 1; subtr < width && f->drawtype == NDT_AIRLIKE; subtr++) {
+			n = m_data->m_vmanip.getNodeNoExNoEmerge(p - v3s16(0, subtr, 0));
+			f = &m_nodedef->get(n);
+		}
+		if (!types.test(f->drawtype))
+			continue;
+
+		// node is not visible if all neighbors are not air
+		bool is_visible = false;
+		for (u8 d = 0; d < Direction_END; d++) {
+			neighbors[d] = m_data->m_vmanip.getNodeNoExNoEmerge(p + s_direction[d] * width);
+			is_visible |= neighbors[d].getContent() == CONTENT_IGNORE || m_nodedef->get(neighbors[d]).drawtype == NDT_AIRLIKE;
+		}
+		if (!is_visible)
+			continue;;
+
+		LightPair lp;
+		if (f->drawtype == NDT_NORMAL) {
+			lp = static_cast<LightPair>(getInteriorLight(neighbors[0], 0, m_nodedef));
+			for (u8 d = 1; d < Direction_END; d++)
+				lp = std::max(lp, static_cast<LightPair>(getInteriorLight(neighbors[d], 0, m_nodedef)));
+		}
+		else {
+			lp = static_cast<LightPair>(getInteriorLight(n, 0, m_nodedef));
+		}
+
+		video::SColor color = encode_light(lp, m_nodedef->getLightingFlags(n).light_source);
+		video::SColor c2 = m_nodedef->get(n).average_colors[UP];
+		color = video::SColor(
+			255U / width,
+			color.getRed() * c2.getRed() / 255U,
+			color.getGreen() * c2.getGreen() / 255U,
+			color.getBlue() * c2.getBlue() / 255U);
+
+		const video::S3DVertex *vert = new video::S3DVertex((p.X - m_blockpos_nodes.X) * BS,
+			(p.Y - m_blockpos_nodes.Y) * BS,
+			(p.Z - m_blockpos_nodes.Z) * BS, 0, 0, 0, color, 0, 0);
+		static constexpr u16 index[1] = {0};
+		m_collector->append(s_static_tile, vert, 1, index, 1);
+	}
 }

@@ -950,12 +950,16 @@ static u32 transformBuffersToDrawOrder(
 	auto *driver = RenderingEngine::get_video_driver();
 
 	// check if we can even merge anything
-	u32 can_merge = 0;
+	u32 can_merge_meshes = 0;
+	u32 can_merge_pointclouds = 0;
 	u32 total_vtx = 0, total_idx = 0;
 	for (auto &pair : src) {
-		if (pair.second->getVertexCount() < target_min_vertices ||
-			pair.second->getPrimitiveType() == scene::EPT_POINT_SPRITES) {
-			can_merge++;
+		if (pair.second->getVertexCount() < target_min_vertices) {
+			if (pair.second->getPrimitiveType() == scene::EPT_POINT_SPRITES) {
+				can_merge_pointclouds++;
+			} else {
+				can_merge_meshes++;
+			}
 			total_vtx += pair.second->getVertexCount();
 			total_idx += pair.second->getIndexCount();
 		}
@@ -967,12 +971,14 @@ static u32 transformBuffersToDrawOrder(
 	for (auto it = src.rbegin(); it != src.rend(); ++it) {
 		v3f translate = get_world_pos(it->first);
 		auto *buf = it->second;
-		if (buf->getPrimitiveType() == scene::EPT_POINT_SPRITES) {
+		if (buf->getPrimitiveType() == scene::EPT_POINT_SPRITES &&
+			can_merge_pointclouds > 1 && buf->getVertexCount() < target_min_vertices) {
 			to_merge_points.emplace_back(translate, buf);
-		} else if (can_merge < 2 || buf->getVertexCount() >= target_min_vertices) {
-			draw_order.emplace_back(translate, buf);
-		} else
+		} else if (buf->getPrimitiveType() != scene::EPT_POINT_SPRITES &&
+			can_merge_meshes > 1 && buf->getVertexCount() < target_min_vertices) {
 			to_merge_trigs.emplace_back(translate, buf);
+		} else
+			draw_order.emplace_back(translate, buf);
 	}
 	mergePointclouds(draw_order, driver, total_vtx, total_idx, dynamic_buffers, to_merge_points);
 
@@ -1055,7 +1061,7 @@ static u32 transformBuffersToDrawOrder(
 	if (draw_order.size() > draw_order_pre)
 		draw_order[draw_order_pre].m_reuse_material = false;
 
-	return can_merge < 2 ? 0 : can_merge;
+	return can_merge_meshes < 2 ? 0 : can_merge_meshes;
 }
 
 void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)

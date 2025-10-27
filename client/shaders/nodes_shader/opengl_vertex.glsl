@@ -5,6 +5,9 @@ uniform vec3 dayLight;
 // The cameraOffset is the current center of the visible world.
 uniform highp vec3 cameraOffset;
 uniform float animationTimer;
+// This is required for pointcloud point size calculations
+uniform vec2 resolution;
+uniform float fovX;
 
 varying vec3 vNormal;
 varying vec3 vPosition;
@@ -188,8 +191,9 @@ void main(void)
 #endif
 	worldPosition = (mWorld * pos).xyz;
 	gl_Position = mWorldViewProj * pos;
-	// TODO get rid of the magic number of 500
-	gl_PointSize = mWorldViewProj[1][1] * 5000 * BS / gl_Position.w;
+	// .7 is the perfect size so the point has the dame size as the diagonal of a node
+	// the alpha channel contains the lod size
+	gl_PointSize = BS * resolution.x * .7 / tan(fovX / 2) / inVertexColor.a / gl_Position.w;
 
 	vPosition = gl_Position.xyz;
 	eyeVec = -(mWorldView * pos).xyz;
