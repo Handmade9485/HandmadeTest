@@ -193,7 +193,7 @@ void main(void)
 	gl_Position = mWorldViewProj * pos;
 	// .7 is the perfect size so the point has the dame size as the diagonal of a node
 	// the alpha channel contains the lod size
-	gl_PointSize = BS * resolution.x * .7 / tan(fovX / 2) / inVertexColor.a / gl_Position.w;
+	gl_PointSize = BS * resolution.x * 1.4 / tan(fovX / 2) / gl_Position.w;
 
 	vPosition = gl_Position.xyz;
 	eyeVec = -(mWorldView * pos).xyz;

@@ -356,6 +356,7 @@ void LodMeshGenerator::generatePoints(const u8 lod) const
 	// cap LODs width to chunk size to account for different mesh chunk settings
 	if (width > m_data->m_side_length)
 		width = m_data->m_side_length;
+	width = 2;
 
 	MapNode neighbors[Direction_END];
 
@@ -402,10 +403,10 @@ void LodMeshGenerator::generatePoints(const u8 lod) const
 			lp = static_cast<LightPair>(getInteriorLight(n, 0, m_nodedef));
 		}
 
-		video::SColor color = encode_light(lp, m_nodedef->getLightingFlags(n).light_source);
+		video::SColor color = encode_light(255, m_nodedef->getLightingFlags(n).light_source);
 		video::SColor c2 = m_nodedef->get(n).average_colors[UP];
 		color = video::SColor(
-			255U / width,
+			color.getAlpha(),
 			color.getRed() * c2.getRed() / 255U,
 			color.getGreen() * c2.getGreen() / 255U,
 			color.getBlue() * c2.getBlue() / 255U);
