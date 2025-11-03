@@ -60,10 +60,17 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 
 				bitset column = m_slices[slice_offset + u];
 				while (column) {
-					s32 v0 = __builtin_ctzll(column);
-					// Shift the bitset down, so it has no low 0s anymore,
-					// then count the numer of low 1s to get the length of the greedy quad.
-					s32 v1 = __builtin_ctzll(~(column >> v0));
+					#if defined(__GNUC__) || defined(__clang__) || defined(__MINGW32__) || defined(__MINGW64__)
+						s32 v0 = __builtin_ctzll(column);
+						// Shift the bitset down, so it has no low 0s anymore,
+						// then count the numer of low 1s to get the length of the greedy quad.
+						s32 v1 = __builtin_ctzll(~(column >> v0));
+					#elif defined(_MSC_VER)
+						s32 v0 = _BitScanForward64(column);
+						// Shift the bitset down, so it has no low 0s anymore,
+						// then count the numer of low 1s to get the length of the greedy quad.
+						s32 v1 = _BitScanForward64(~(column >> v0));
+					#endif
 					const bitset mask = ((1ULL << v1) - 1) << v0;
 					column ^= mask;
 					// Determine the width of the greedy quad
@@ -279,7 +286,11 @@ void LodMeshGenerator::generateGreedyLod(const std::bitset<NodeDrawType_END> typ
 				for (u8 v = 0; v < BITSET_MAX_NOPAD; v++) {
 					bitset column = m_nodes_faces[u_offset + v];
 					while (column) {
-						const u8 first_filled = __builtin_ctzll(column);
+						#if defined( __GNUC__ ) || defined( __clang__ ) || defined(__MINGW32__)
+							const u8 first_filled = __builtin_ctzll(column);
+						#elif defined(_MSC_VER)
+							const u8 first_filled = _BitScanForward64(column);
+						#endif
 						m_slices[direction_offset + BITSET_MAX_NOPAD * first_filled + u] |= 1ULL << v;
 						column &= column - 1;
 					}
@@ -331,8 +342,7 @@ void LodMeshGenerator::generateMesh(const u8 lod)
 	// transparents are always rendered separately
 	std::bitset<NodeDrawType_END> transparent_set;
 	transparent_set.set(NDT_LIQUID);
-	if (g_settings->get("leaves_style") == "simple")
-		transparent_set.set(NDT_GLASSLIKE);
+	transparent_set.set(NDT_GLASSLIKE);
 
 	generateLodChunks(transparent_set, width);
 
@@ -340,6 +350,7 @@ void LodMeshGenerator::generateMesh(const u8 lod)
 	solid_set.set(NDT_NORMAL);
 	solid_set.set(NDT_NODEBOX);
 	solid_set.set(NDT_ALLFACES);
+	solid_set.set(NDT_MESH);
 
 	generateLodChunks(solid_set, width);
 }
