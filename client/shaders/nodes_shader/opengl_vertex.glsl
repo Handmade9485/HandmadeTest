@@ -197,7 +197,10 @@ void main(void)
 #endif
 	worldPosition = (mWorld * pos).xyz;
 	gl_Position = mWorldViewProj * pos;
-	gl_PointSize = BS * resolution.x / tan(fovX / 2) / gl_Position.w;
+
+	// fov distortion near screen edges. mathematically incorrect, but the best i can do
+	float distortion = abs(gl_Position.x / gl_Position.w) * fovX * 0.5 + 1;
+	gl_PointSize = distortion * BS * resolution.x / tan(fovX / 2) / gl_Position.w;
 
 	vPosition = gl_Position.xyz;
 	eyeVec = -(mWorldView * pos).xyz;
