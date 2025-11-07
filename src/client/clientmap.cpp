@@ -7,14 +7,16 @@
 #include "client/mesh.h"
 #include "mapblock_mesh.h"
 #include <IMaterialRenderer.h>
+#include <ISceneManager.h>
 #include <IVideoDriver.h>
 #include <matrix4.h>
 #include "mapsector.h"
 #include "mapblock.h"
 #include "nodedef.h"
+#include "player.h" // CameraMode
 #include "profiler.h"
 #include "settings.h"
-#include "camera.h"               // CameraModes
+#include "camera.h"
 #include "util/basic_macros.h"
 #include "util/tracy_wrapper.h"
 #include "client/renderingengine.h"
@@ -1133,7 +1135,7 @@ void ClientMap::renderMap(video::IVideoDriver* driver, s32 pass)
 
 		// Mesh animation
 		if (pass == scene::ESNRP_SOLID) {
-			bool faraway = block_mesh->m_lod == 0;
+			bool faraway = block_mesh->m_lod > 0;
 
 			if (block_mesh->isAnimationForced() || !faraway ||
 					mesh_animate_count < (m_control.range_all ? 200 : 50)) {

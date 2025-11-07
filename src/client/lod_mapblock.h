@@ -13,16 +13,16 @@ struct MeshCollector;
 class LodMeshGenerator
 {
 public:
-    LodMeshGenerator(MeshMakeData *input, MeshCollector *output, bool is_mono_mat);
-    void generateMesh(u8 lod);
+	LodMeshGenerator(MeshMakeData *input, MeshCollector *output, bool is_textureless);
+	void generateMesh(u8 lod);
 	void generatePoints(u8 lod) const;
 
 private:
-    MeshMakeData *const m_data;
-    MeshCollector *const m_collector;
-    const NodeDefManager *const m_nodedef;
+	MeshMakeData *const m_data;
+	MeshCollector *const m_collector;
+	const NodeDefManager *const m_nodedef;
 	const v3s16 m_blockpos_nodes;
-	const bool m_is_mono_mat;
+	const bool m_is_textureless;
 
 	// max bits the fit in a bitset
 	static constexpr s16 BITSET_MAX = 64;
@@ -57,8 +57,8 @@ private:
 
 	void generateGreedyLod(std::bitset<NodeDrawType_END> types, v3s16 seg_start, v3s16 seg_size, u8 width);
 	void generateBitsetMesh(MapNode n, u8 width, v3s16 seg_start, video::SColor color_in);
-    LightPair computeMaxFaceLight(MapNode n, v3s16 p, v3s16 dir) const;
-    void generateLodChunks(std::bitset<NodeDrawType_END> types, u8 width);
+	LightPair computeMaxFaceLight(MapNode n, v3s16 p, v3s16 dir) const;
+	void generateLodChunks(std::bitset<NodeDrawType_END> types, u8 width);
 };
 
 struct NodeKey {

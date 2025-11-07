@@ -30,11 +30,10 @@
 	MeshMakeData
 */
 
-MeshMakeData::MeshMakeData(const NodeDefManager *ndef, u16 side_length, MeshGrid mesh_grid/*, u16 lod*/):
-    m_side_length(side_length),
-    m_mesh_grid(mesh_grid),
-    // m_lod(lod),
-    m_nodedef(ndef)
+MeshMakeData::MeshMakeData(const NodeDefManager *ndef, u16 side_length, MeshGrid mesh_grid):
+	m_side_length(side_length),
+	m_mesh_grid(mesh_grid),
+	m_nodedef(ndef)
 {
 	assert(m_side_length > 0);
 }
@@ -629,17 +628,18 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	v3f offset = intToFloat((data->m_blockpos - mesh_grid.getMeshPos(data->m_blockpos)) * MAP_BLOCKSIZE, BS);
 
 	MeshCollector collector(m_bounding_sphere_center, offset);
-	const bool is_pointcloud = lod >= g_settings->getU16("lod_pointcloud_threshold");
-	const bool is_mono_mat = is_pointcloud || lod >= g_settings->getU16("lod_texture_threshold");
+	const bool is_lod_enabled = g_settings->getBool("enable_lod");
+	const bool is_pointcloud = is_lod_enabled || lod >= g_settings->getU16("lod_pointcloud_threshold");
+	const bool is_textureless = is_pointcloud || lod >= g_settings->getU16("lod_texture_threshold");
 
 	{
-        // Generate everything
-        if (lod == 0)
+		// Generate everything
+		if (lod == 0 || !is_lod_enabled)
 			MapblockMeshGenerator(data, &collector).generate();
-        else if (is_pointcloud)
-	        LodMeshGenerator(data, &collector, is_mono_mat).generatePoints(lod);
+		else if (is_pointcloud)
+			LodMeshGenerator(data, &collector, is_textureless).generatePoints(lod);
 		else
-	        LodMeshGenerator(data, &collector, is_mono_mat).generateMesh(lod);
+			LodMeshGenerator(data, &collector, is_textureless).generateMesh(lod);
 	}
 
 	/*
@@ -647,11 +647,9 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	*/
 	m_bounding_radius = std::sqrt(collector.m_bounding_radius_sq);
 
-	if (is_mono_mat) {
-		generateMonoMesh(collector, is_pointcloud);
-		m_has_animation = false;
-	}
-	else {
+	if (is_textureless)
+		generateMonoMesh(collector);
+	else
 		generateMesh(collector);
 
 		m_bsp_tree.buildTree(&m_transparent_triangles, data->m_side_length);

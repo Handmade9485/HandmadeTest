@@ -20,17 +20,17 @@
 static constexpr u16 quad_indices_02[] = {0, 1, 2, 2, 3, 0};
 static const auto &quad_indices = quad_indices_02;
 
-LodMeshGenerator::LodMeshGenerator(MeshMakeData *input, MeshCollector *output, const bool is_mono_mat):
+LodMeshGenerator::LodMeshGenerator(MeshMakeData *input, MeshCollector *output, const bool is_textureless):
 	m_data(input),
 	m_collector(output),
 	m_nodedef(m_data->m_nodedef),
 	m_blockpos_nodes(m_data->m_blockpos * MAP_BLOCKSIZE),
-	m_is_mono_mat(is_mono_mat)
+	m_is_textureless(is_textureless)
 {
 }
 
 void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
-                                          const v3s16 seg_start, const video::SColor color_in)
+		const v3s16 seg_start, const video::SColor color_in)
 {
 	const core::vector3df seg_offset(seg_start.X * BS, seg_start.Y * BS, seg_start.Z * BS);
 	const f32 scaled_BS = BS * width;
@@ -40,7 +40,7 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 	for (u8 direction = 0; direction < Direction_END; direction++) {
 		TileSpec tile;
 		video::SColor color;
-		if (m_is_mono_mat) {
+		if (m_is_textureless) {
 			// When generating a mesh with no texture, we have to color the vertices instead.
 			video::SColor c2 = m_nodedef->get(n).average_colors[direction];
 			color = video::SColor(
@@ -66,10 +66,12 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 						// then count the numer of low 1s to get the length of the greedy quad.
 						s32 v1 = __builtin_ctzll(~(column >> v0));
 					#elif defined(_MSC_VER)
-						s32 v0 = _BitScanForward64(column);
+						s32 v0;
+						_BitScanForward64(&v0, column);
 						// Shift the bitset down, so it has no low 0s anymore,
 						// then count the numer of low 1s to get the length of the greedy quad.
-						s32 v1 = _BitScanForward64(~(column >> v0));
+						s32 v1;
+						_BitScanForward64(&v1, ~(column >> v0));
 					#endif
 					const bitset mask = ((1ULL << v1) - 1) << v0;
 					column ^= mask;
@@ -152,7 +154,7 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 						irr_vertices[2] = video::S3DVertex(vertices[2], s_normals[direction], color, uvs[2]);
 						irr_vertices[3] = video::S3DVertex(vertices[1], s_normals[direction], color, uvs[3]);
 					}
-					m_collector->append(m_is_mono_mat ? s_static_tile : tile, irr_vertices, 4, quad_indices, 6);
+					m_collector->append(m_is_textureless ? s_static_tile : tile, irr_vertices, 4, quad_indices, 6);
 				}
 			}
 		}
@@ -289,7 +291,8 @@ void LodMeshGenerator::generateGreedyLod(const std::bitset<NodeDrawType_END> typ
 						#if defined( __GNUC__ ) || defined( __clang__ ) || defined(__MINGW32__)
 							const u8 first_filled = __builtin_ctzll(column);
 						#elif defined(_MSC_VER)
-							const u8 first_filled = _BitScanForward64(column);
+							const u8 first_filled;
+							_BitScanForward64(&first_filled, column);
 						#endif
 						m_slices[direction_offset + BITSET_MAX_NOPAD * first_filled + u] |= 1ULL << v;
 						column &= column - 1;
@@ -333,7 +336,7 @@ void LodMeshGenerator::generateMesh(const u8 lod)
 	ZoneScoped;
 
 	// cap LODs to 8, since there is no use for larger than 256 node LODs
-    u8 width = 1 << MYMIN(lod - 1, 7);
+	u8 width = 1 << MYMIN(lod - 1, 7);
 
 	// cap LODs width to chunk size to account for different mesh chunk settings
 	if (width > m_data->m_side_length)
