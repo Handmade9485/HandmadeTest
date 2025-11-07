@@ -629,8 +629,8 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 
 	MeshCollector collector(m_bounding_sphere_center, offset);
 	const bool is_lod_enabled = g_settings->getBool("enable_lod");
-	const bool is_pointcloud = is_lod_enabled || lod >= g_settings->getU16("lod_pointcloud_threshold");
-	const bool is_textureless = is_pointcloud || lod >= g_settings->getU16("lod_texture_threshold");
+	const bool is_pointcloud = lod >= g_settings->getU16("lod_pointcloud_threshold");
+	const bool is_textureless = lod >= g_settings->getU16("lod_texture_threshold");
 
 	{
 		// Generate everything
@@ -647,19 +647,17 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	*/
 	m_bounding_radius = std::sqrt(collector.m_bounding_radius_sq);
 
-	if (is_textureless)
-		generateMonoMesh(collector);
+	if (is_lod_enabled && is_textureless)
+		generateMonoMesh(collector, is_pointcloud);
 	else
 		generateMesh(collector);
 
-		m_bsp_tree.buildTree(&m_transparent_triangles, data->m_side_length);
+	m_bsp_tree.buildTree(&m_transparent_triangles, data->m_side_length);
 
-		// Check if animation is required for this mesh
-		m_has_animation =
-			!m_crack_materials.empty() ||
-			!m_animation_info.empty();
-	}
-
+	// Check if animation is required for this mesh
+	m_has_animation =
+		!m_crack_materials.empty() ||
+		!m_animation_info.empty();
 }
 
 void MapBlockMesh::generateMonoMesh(MeshCollector &collector, const bool is_pointcloud) const {
