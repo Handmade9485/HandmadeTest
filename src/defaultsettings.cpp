@@ -247,9 +247,9 @@ void set_default_settings()
 	settings->setDefault("fps_max_unfocused", "10");
 	settings->setDefault("viewing_range", "190");
 	settings->setDefault("enable_lod", "true");
-    settings->setDefault("lod_threshold", "10");
-    settings->setDefault("lod_quality", "1.5");
-    settings->setDefault("lod_texture_threshold", "2");
+	settings->setDefault("lod_threshold", "10");
+	settings->setDefault("lod_quality", "1.5");
+	settings->setDefault("lod_texture_threshold", "2");
 	settings->setDefault("lod_pointcloud_threshold", "3");
 	settings->setDefault("client_mesh_chunk", "1");
 	settings->setDefault("screen_w", "1024");
