@@ -647,7 +647,7 @@ MapBlockMesh::MapBlockMesh(Client *client, MeshMakeData *data, const u8 lod, con
 	*/
 	m_bounding_radius = std::sqrt(collector.m_bounding_radius_sq);
 
-	if (is_lod_enabled && is_textureless)
+	if (is_lod_enabled && (is_textureless || is_pointcloud))
 		generateMonoMesh(collector, is_pointcloud);
 	else
 		generateMesh(collector);
