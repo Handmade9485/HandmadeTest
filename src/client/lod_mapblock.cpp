@@ -426,13 +426,16 @@ void LodMeshGenerator::generatePoints(const u8 lod) const
 			lp = static_cast<LightPair>(getInteriorLight(n, 0, m_nodedef));
 		}
 
+		TileSpec tile;
+		getNodeTileN(n, m_blockpos_nodes, UP, m_data, tile);
 		video::SColor color = encode_light(lp, m_nodedef->getLightingFlags(n).light_source);
 		video::SColor c2 = m_nodedef->get(n).average_colors[UP];
+		video::SColor c3 = tile.layers[0].color;
 		color = video::SColor(
 			color.getAlpha(),
-			color.getRed() * c2.getRed() / 255U,
-			color.getGreen() * c2.getGreen() / 255U,
-			color.getBlue() * c2.getBlue() / 255U);
+			color.getRed() * c2.getRed() * c3.getRed() / 65025U,
+			color.getGreen() * c2.getGreen() * c3.getGreen() / 65025U,
+			color.getBlue() * c2.getBlue() * c3.getBlue() / 65025U);
 
 		const video::S3DVertex *vert = new video::S3DVertex((p.X - m_blockpos_nodes.X) * BS,
 			(p.Y - m_blockpos_nodes.Y) * BS,
