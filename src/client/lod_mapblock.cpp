@@ -40,17 +40,23 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 	for (u8 direction = 0; direction < Direction_END; direction++) {
 		TileSpec tile;
 		video::SColor color;
+		getNodeTileN(n, m_blockpos_nodes, direction, m_data, tile);
 		if (m_is_textureless) {
-			// When generating a mesh with no texture, we have to color the vertices instead.
+			// When generating a mesh with no texture, we have to color the vertices instead of relying on the texture.
 			video::SColor c2 = m_nodedef->get(n).average_colors[direction];
+			video::SColor c3 = tile.layers[0].color;
 			color = video::SColor(
 				color_in.getAlpha(),
-				color_in.getRed() * c2.getRed() / 255U,
-				color_in.getGreen() * c2.getGreen() / 255U,
-				color_in.getBlue() * c2.getBlue() / 255U);
+				color_in.getRed() * c2.getRed() * c3.getRed() / 65025U,
+				color_in.getGreen() * c2.getGreen() * c3.getGreen() / 65025U,
+				color_in.getBlue() * c2.getBlue() * c3.getBlue() / 65025U);
 		} else {
-			getNodeTileN(n, m_blockpos_nodes, direction, m_data, tile);
-			color = color_in;
+			video::SColor c2 = tile.layers[0].color;
+			color = video::SColor(
+				color_in.getAlpha(),
+				color_in.getRed() * c2.getRed() * 255U,
+				color_in.getGreen() * c2.getGreen() * 255U,
+				color_in.getBlue() * c2.getBlue() * 255U);
 		}
 
 		const u64 direction_offset = BITSET_MAX_NOPAD2 * direction;
@@ -66,12 +72,13 @@ void LodMeshGenerator::generateBitsetMesh(const MapNode n, const u8 width,
 						// then count the numer of low 1s to get the length of the greedy quad.
 						s32 v1 = __builtin_ctzll(~(column >> v0));
 					#elif defined(_MSC_VER)
-						s32 v0;
-						_BitScanForward64(&v0, column);
+						unsigned long int tmp;
+						_BitScanForward64(&tmp, column);
+						s32 v0 = static_cast<s32>(tmp);
 						// Shift the bitset down, so it has no low 0s anymore,
 						// then count the numer of low 1s to get the length of the greedy quad.
-						s32 v1;
-						_BitScanForward64(&v1, ~(column >> v0));
+						_BitScanForward64(&tmp, ~(column >> v0));
+						s32 v1 = static_cast<s32>(tmp);
 					#endif
 					const bitset mask = ((1ULL << v1) - 1) << v0;
 					column ^= mask;
@@ -291,8 +298,9 @@ void LodMeshGenerator::generateGreedyLod(const std::bitset<NodeDrawType_END> typ
 						#if defined( __GNUC__ ) || defined( __clang__ ) || defined(__MINGW32__)
 							const u8 first_filled = __builtin_ctzll(column);
 						#elif defined(_MSC_VER)
-							const u8 first_filled;
-							_BitScanForward64(&first_filled, column);
+							unsigned long int tmp;
+							_BitScanForward64(&tmp, column);
+							const u8 first_filled = static_cast<u8>(tmp);
 						#endif
 						m_slices[direction_offset + BITSET_MAX_NOPAD * first_filled + u] |= 1ULL << v;
 						column &= column - 1;
